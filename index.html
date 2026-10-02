@@ -65,7 +65,8 @@
     display: flex;
     gap: 6px;
   }
-  .input-with-btn input {
+  .input-with-btn input,
+  .input-with-btn select {
     flex: 1;
   }
   .btn-scan {
@@ -284,7 +285,7 @@
       <label for="serial">Service Tag ou Serial Number</label>
       <div class="input-with-btn">
         <input type="text" id="serial" name="serial" placeholder="Digite ou escaneie">
-        <button type="button" class="btn-scan" id="btnScanSerial" title="Escanear com a câmera">📷</button>
+        <button type="button" class="btn-scan" data-target="serial" data-type="input" title="Escanear com a câmera">📷</button>
       </div>
     </div>
 
@@ -308,10 +309,10 @@
 
     <div class="field">
       <label for="etiqueta">Etiqueta</label>
-      <select id="etiqueta" name="etiqueta">
-        <option value="">Selecione</option>
-        <!-- Opções geradas via JS: C006100 até C006200 -->
-      </select>
+      <div class="input-with-btn">
+        <input type="text" id="etiqueta" name="etiqueta" placeholder="Digite ou escaneie">
+        <button type="button" class="btn-scan" data-target="etiqueta" data-type="input" title="Escanear com a câmera">📷</button>
+      </div>
     </div>
 
     <div class="field">
@@ -362,6 +363,7 @@
     <h3>📷 Escanear QR Code / Código de Barras</h3>
     <div id="qr-reader"></div>
     <div class="scan-status" id="scanStatus">Aponte a câmera para o código...</div>
+    <select id="cameraSelect" style="margin-top:10px; width:100%; display:none;"></select>
     <button type="button" class="modal-close" id="closeScanModal">Fechar</button>
   </div>
 </div>
@@ -373,8 +375,6 @@
   const emptyMsg = document.getElementById('emptyMsg');
   const categoriaSelect = document.getElementById('categoria');
   const modeloSelect = document.getElementById('modelo');
-  const etiquetaSelect = document.getElementById('etiqueta');
-  const serialInput = document.getElementById('serial');
 
   // Relação Categoria -> Modelos (já em ordem alfabética)
   const modelosPorCategoria = {
@@ -434,17 +434,6 @@
   }
 
   categoriaSelect.addEventListener('change', atualizarModelos);
-
-  // Gera as opções de Etiqueta: C006100 até C006200
-  function gerarOpcoesEtiqueta() {
-    for (let i = 6100; i <= 6200; i++) {
-      const valor = 'C00' + i;
-      const option = document.createElement('option');
-      option.value = valor;
-      option.textContent = valor;
-      etiquetaSelect.appendChild(option);
-    }
-  }
 
   function getRegistros() {
     const data = localStorage.getItem(STORAGE_KEY);
@@ -568,13 +557,84 @@
 
   // ===================== LEITOR DE CÂMERA (QR CODE / CÓDIGO DE BARRAS) =====================
   const scanModal = document.getElementById('scanModal');
-  const btnScanSerial = document.getElementById('btnScanSerial');
   const closeScanModal = document.getElementById('closeScanModal');
   const scanStatus = document.getElementById('scanStatus');
+  const cameraSelect = document.getElementById('cameraSelect');
   let html5QrCode = null;
+  let targetFieldId = null;
 
-  function abrirScanner() {
+  function verificarAmbiente() {
+    const isSecure = window.isSecureContext;
+    const protocol = window.location.protocol;
+    const hostname = window.location.hostname;
+
+    if (!isSecure && protocol !== 'http:' && hostname !== 'localhost') {
+      return 'INSECURE_CONTEXT';
+    }
+    if (protocol === 'file:') {
+      return 'FILE_PROTOCOL';
+    }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      return 'NO_MEDIADEVICES';
+    }
+    return 'OK';
+  }
+
+  async function abrirScanner(targetId) {
+    targetFieldId = targetId;
+
     scanModal.classList.add('active');
+    scanStatus.textContent = 'Verificando ambiente...';
+    cameraSelect.style.display = 'none';
+
+    const ambiente = verificarAmbiente();
+
+    if (ambiente === 'FILE_PROTOCOL' || ambiente === 'INSECURE_CONTEXT') {
+      scanStatus.innerHTML = '⚠️ A câmera só funciona em páginas servidas via <b>HTTPS</b> ou <b>http://localhost</b>.';
+      return;
+    }
+    if (ambiente === 'NO_MEDIADEVICES') {
+      scanStatus.textContent = '⚠️ Seu navegador não suporta acesso à câmera.';
+      return;
+    }
+
+    scanStatus.textContent = 'Solicitando permissão da câmera...';
+
+    try {
+      const devices = await Html5Qrcode.getCameras();
+
+      if (!devices || devices.length === 0) {
+        scanStatus.textContent = '⚠️ Nenhuma câmera foi encontrada neste dispositivo.';
+        return;
+      }
+
+      cameraSelect.innerHTML = '';
+      devices.forEach((device, idx) => {
+        const option = document.createElement('option');
+        option.value = device.id;
+        option.textContent = device.label || `Câmera ${idx + 1}`;
+        cameraSelect.appendChild(option);
+      });
+
+      if (devices.length > 1) {
+        cameraSelect.style.display = 'block';
+      }
+
+      let cameraEscolhida = devices[0].id;
+      const traseira = devices.find(d => /back|traseira|rear|environment/i.test(d.label));
+      if (traseira) {
+        cameraEscolhida = traseira.id;
+        cameraSelect.value = traseira.id;
+      }
+
+      iniciarLeitura(cameraEscolhida);
+
+    } catch (err) {
+      tratarErroCamera(err);
+    }
+  }
+
+  function iniciarLeitura(cameraId) {
     scanStatus.textContent = 'Iniciando câmera...';
 
     html5QrCode = new Html5Qrcode("qr-reader");
@@ -582,35 +642,40 @@
     const config = {
       fps: 10,
       qrbox: { width: 250, height: 150 },
-      // Suporta QR Code e principais formatos de código de barras
-      formatsToSupport: [
-        Html5QrcodeSupportedFormats.QR_CODE,
-        Html5QrcodeSupportedFormats.CODE_128,
-        Html5QrcodeSupportedFormats.CODE_39,
-        Html5QrcodeSupportedFormats.EAN_13,
-        Html5QrcodeSupportedFormats.EAN_8,
-        Html5QrcodeSupportedFormats.UPC_A,
-        Html5QrcodeSupportedFormats.UPC_E,
-        Html5QrcodeSupportedFormats.ITF
-      ]
     };
 
     html5QrCode.start(
-      { facingMode: "environment" }, // usa câmera traseira em celulares
+      cameraId,
       config,
       (decodedText) => {
-        // Código lido com sucesso
-        serialInput.value = decodedText;
-        scanStatus.textContent = 'Código lido: ' + decodedText;
+        const elemento = document.getElementById(targetFieldId);
+        elemento.value = decodedText;
+        scanStatus.textContent = '✅ Código lido: ' + decodedText;
         fecharScanner();
       },
       (errorMessage) => {
-        // Erros de leitura contínuos (ignorados, é normal enquanto não encontra o código)
+        // Ignorado: erros contínuos normais durante a busca
       }
-    ).catch((err) => {
-      scanStatus.textContent = 'Não foi possível acessar a câmera. Verifique as permissões do navegador.';
-      console.error('Erro ao iniciar câmera:', err);
+    ).then(() => {
+      scanStatus.textContent = 'Aponte a câmera para o código...';
+    }).catch((err) => {
+      tratarErroCamera(err);
     });
+  }
+
+  function tratarErroCamera(err) {
+    console.error('Erro de câmera:', err);
+    const mensagem = (err && err.message) ? err.message : String(err);
+
+    if (/NotAllowedError|Permission denied|permission/i.test(mensagem)) {
+      scanStatus.innerHTML = '⚠️ <b>Permissão negada.</b> Permita o acesso à câmera nas configurações do navegador e tente novamente.';
+    } else if (/NotFoundError|no camera|Requested device not found/i.test(mensagem)) {
+      scanStatus.textContent = '⚠️ Nenhuma câmera foi encontrada neste dispositivo.';
+    } else if (/NotReadableError|Could not start video source/i.test(mensagem)) {
+      scanStatus.textContent = '⚠️ A câmera já está sendo usada por outro programa ou aba.';
+    } else {
+      scanStatus.textContent = '⚠️ Erro ao acessar câmera: ' + mensagem;
+    }
   }
 
   function fecharScanner() {
@@ -627,10 +692,25 @@
     }, 300);
   }
 
-  btnScanSerial.addEventListener('click', abrirScanner);
+  // Associa o evento de clique a TODOS os botões de escanear (serial e etiqueta)
+  document.querySelectorAll('.btn-scan').forEach(btn => {
+    btn.addEventListener('click', function () {
+      const targetId = this.getAttribute('data-target');
+      abrirScanner(targetId);
+    });
+  });
+
   closeScanModal.addEventListener('click', fecharScanner);
 
-  // Fecha o modal se clicar fora da caixa
+  cameraSelect.addEventListener('change', function () {
+    if (html5QrCode) {
+      html5QrCode.stop().then(() => {
+        html5QrCode.clear();
+        iniciarLeitura(cameraSelect.value);
+      });
+    }
+  });
+
   scanModal.addEventListener('click', function (e) {
     if (e.target === scanModal) {
       fecharScanner();
@@ -638,7 +718,6 @@
   });
 
   // ===================== INICIALIZAÇÕES =====================
-  gerarOpcoesEtiqueta();
   renderTabela();
 </script>
 
