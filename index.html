@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Registro de Equipamentos</title>
+
+<!-- Biblioteca para leitura de QR Code / Código de Barras via câmera -->
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    background: #f4f6f8;
+    margin: 0;
+    padding: 20px;
+    color: #333;
+  }
+  h1 {
+    text-align: center;
+    color: #2c3e50;
+  }
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  form {
+    background: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 15px;
+    margin-bottom: 25px;
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+  }
+  .field.full {
+    grid-column: 1 / -1;
+  }
+  label {
+    font-weight: bold;
+    margin-bottom: 5px;
+    font-size: 14px;
+  }
+  input, select, textarea {
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+  }
+  select:disabled {
+    background: #eee;
+    cursor: not-allowed;
+  }
+  textarea {
+    resize: vertical;
+    min-height: 60px;
+  }
+  .input-with-btn {
+    display: flex;
+    gap: 6px;
+  }
+  .input-with-btn input {
+    flex: 1;
+  }
+  .btn-scan {
+    background: #16a085;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 10px;
+    cursor: pointer;
+    font-size: 16px;
+    white-space: nowrap;
+  }
+  .btn-scan:hover { background: #12806b; }
+
+  .buttons {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  .btn-save {
+    background: #27ae60;
+    color: #fff;
+  }
+  .btn-save:hover { background: #219150; }
+  .btn-clear {
+    background: #e74c3c;
+    color: #fff;
+  }
+  .btn-clear:hover { background: #c0392b; }
+  .btn-export {
+    background: #2980b9;
+    color: #fff;
+  }
+  .btn-export:hover { background: #1f6391; }
+
+  .table-wrapper {
+    overflow-x: auto;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 900px;
+  }
+  th, td {
+    border: 1px solid #ddd;
+    padding: 8px 10px;
+    font-size: 13px;
+    text-align: left;
+  }
+  th {
+    background: #2c3e50;
+    color: #fff;
+    position: sticky;
+    top: 0;
+  }
+  tr:nth-child(even) {
+    background: #f9f9f9;
+  }
+  .delete-btn {
+    background: #e74c3c;
+    color: #fff;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .delete-btn:hover { background: #c0392b; }
+
+  .empty-msg {
+    text-align: center;
+    padding: 20px;
+    color: #888;
+  }
+
+  /* Cores por status */
+  .status-em-uso { color: #27ae60; font-weight: bold; }
+  .status-em-estoque { color: #2980b9; font-weight: bold; }
+  .status-em-manutencao { color: #f39c12; font-weight: bold; }
+  .status-emprestado { color: #8e44ad; font-weight: bold; }
+  .status-descartado { color: #c0392b; font-weight: bold; }
+  .status-ocioso { color: #7f8c8d; font-weight: bold; }
+
+  /* Modal do leitor de câmera */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.7);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.active {
+    display: flex;
+  }
+  .modal-box {
+    background: #fff;
+    border-radius: 8px;
+    padding: 15px;
+    width: 95%;
+    max-width: 420px;
+    text-align: center;
+  }
+  .modal-box h3 {
+    margin-top: 0;
+    color: #2c3e50;
+  }
+  #qr-reader {
+    width: 100%;
+  }
+  .modal-close {
+    margin-top: 12px;
+    background: #e74c3c;
+    color: #fff;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .modal-close:hover { background: #c0392b; }
+  .scan-status {
+    font-size: 13px;
+    color: #888;
+    margin-top: 8px;
+    min-height: 18px;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Registro de Equipamentos / Ativos</h1>
+
+  <form id="registroForm">
+    <div class="field">
+      <label for="setor">Setor</label>
+      <select id="setor" name="setor">
+        <option value="">Selecione</option>
+        <option value="ABS">ABS</option>
+        <option value="Almoxarifado de embalagem">Almoxarifado de embalagem</option>
+        <option value="Almoxarifado Intermediario">Almoxarifado Intermediario</option>
+        <option value="Automação">Automação</option>
+        <option value="Biotério">Biotério</option>
+        <option value="Central de Reciclagem">Central de Reciclagem</option>
+        <option value="Inativadas - Banco de células">Inativadas - Banco de células</option>
+        <option value="Inativadas - Cultivo celular">Inativadas - Cultivo celular</option>
+        <option value="Inativadas - Formulação">Inativadas - Formulação</option>
+        <option value="Inativadas - Preparo de meios">Inativadas - Preparo de meios</option>
+        <option value="Inativadas - Recravação">Inativadas - Recravação</option>
+        <option value="Inativadas - Sala de lavagem">Inativadas - Sala de lavagem</option>
+        <option value="Inativadas - Sala técnica">Inativadas - Sala técnica</option>
+        <option value="Manutenção">Manutenção</option>
+        <option value="Portaria 1">Portaria 1</option>
+        <option value="Portaria 2">Portaria 2</option>
+        <option value="Predio A - Controladoria">Predio A - Controladoria</option>
+        <option value="Predio A - Recursos Humanos">Predio A - Recursos Humanos</option>
+        <option value="Predio A - Sala de Reunião 1">Predio A - Sala de Reunião 1</option>
+        <option value="Predio A - Sala de Reunião 2">Predio A - Sala de Reunião 2</option>
+        <option value="Predio A - Tecnologia da informação">Predio A - Tecnologia da informação</option>
+        <option value="Predio C - Banco de Células">Predio C - Banco de Células</option>
+        <option value="Predio C - Biológicos">Predio C - Biológicos</option>
+        <option value="Predio C - Brucellas">Predio C - Brucellas</option>
+        <option value="Predio C - CFQ">Predio C - CFQ</option>
+        <option value="Predio C - CMB">Predio C - CMB</option>
+        <option value="Predio C - Embalagens">Predio C - Embalagens</option>
+        <option value="Predio C - Esterilização">Predio C - Esterilização</option>
+        <option value="Predio C - Farmacêuticos">Predio C - Farmacêuticos</option>
+        <option value="Predio C - Virologia">Predio C - Virologia</option>
+        <option value="Predio E - Almoxarifado Produto">Predio E - Almoxarifado Produto</option>
+        <option value="Predio E - HSE">Predio E - HSE</option>
+        <option value="Recombinantes - Área Limpa">Recombinantes - Área Limpa</option>
+        <option value="Recombinantes - Filtroteca">Recombinantes - Filtroteca</option>
+        <option value="Recombinantes - GID">Recombinantes - GID</option>
+        <option value="Refeitorio">Refeitorio</option>
+        <option value="Sede">Sede</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="usuario">Usuário</label>
+      <input type="text" id="usuario" name="usuario">
+    </div>
+
+    <div class="field">
+      <label for="categoria">Categoria</label>
+      <select id="categoria" name="categoria">
+        <option value="">Selecione</option>
+        <option value="Dock Station">Dock Station</option>
+        <option value="Notebook">Notebook</option>
+        <option value="Desktop">Desktop</option>
+        <option value="Monitor">Monitor</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="modelo">Modelo</label>
+      <select id="modelo" name="modelo" disabled>
+        <option value="">Selecione uma categoria primeiro</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="serial">Service Tag ou Serial Number</label>
+      <div class="input-with-btn">
+        <input type="text" id="serial" name="serial" placeholder="Digite ou escaneie">
+        <button type="button" class="btn-scan" id="btnScanSerial" title="Escanear com a câmera">📷</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="status">Status</label>
+      <select id="status" name="status">
+        <option value="">Selecione</option>
+        <option value="Em uso">Em uso</option>
+        <option value="Em Estoque">Em Estoque</option>
+        <option value="Em Manutenção">Em Manutenção</option>
+        <option value="Emprestado">Emprestado</option>
+        <option value="Descartado">Descartado</option>
+        <option value="Ocioso">Ocioso</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="patrimonio">Patrimônio</label>
+      <input type="text" id="patrimonio" name="patrimonio">
+    </div>
+
+    <div class="field">
+      <label for="etiqueta">Etiqueta</label>
+      <select id="etiqueta" name="etiqueta">
+        <option value="">Selecione</option>
+        <!-- Opções geradas via JS: C006100 até C006200 -->
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="hostname">Hostname</label>
+      <input type="text" id="hostname" name="hostname">
+    </div>
+
+    <div class="field full">
+      <label for="observacao">Observação</label>
+      <textarea id="observacao" name="observacao"></textarea>
+    </div>
+
+    <div class="buttons">
+      <button type="submit" class="btn-save">💾 Salvar Registro</button>
+      <button type="button" class="btn-export" id="exportBtn">⬇️ Exportar CSV</button>
+      <button type="button" class="btn-clear" id="clearAllBtn">🗑️ Limpar Tudo</button>
+    </div>
+  </form>
+
+  <div class="table-wrapper">
+    <table id="tabelaRegistros">
+      <thead>
+        <tr>
+          <th>Setor</th>
+          <th>Usuário</th>
+          <th>Categoria</th>
+          <th>Modelo</th>
+          <th>Service Tag / Serial</th>
+          <th>Status</th>
+          <th>Patrimônio</th>
+          <th>Etiqueta</th>
+          <th>Hostname</th>
+          <th>Observação</th>
+          <th>Ação</th>
+        </tr>
+      </thead>
+      <tbody id="tabelaBody">
+        <!-- Linhas inseridas via JS -->
+      </tbody>
+    </table>
+    <div id="emptyMsg" class="empty-msg" style="display:none;">Nenhum registro cadastrado ainda.</div>
+  </div>
+</div>
+
+<!-- Modal do leitor de câmera -->
+<div class="modal-overlay" id="scanModal">
+  <div class="modal-box">
+    <h3>📷 Escanear QR Code / Código de Barras</h3>
+    <div id="qr-reader"></div>
+    <div class="scan-status" id="scanStatus">Aponte a câmera para o código...</div>
+    <button type="button" class="modal-close" id="closeScanModal">Fechar</button>
+  </div>
+</div>
+
+<script>
+  const STORAGE_KEY = 'registrosEquipamentos';
+  const form = document.getElementById('registroForm');
+  const tabelaBody = document.getElementById('tabelaBody');
+  const emptyMsg = document.getElementById('emptyMsg');
+  const categoriaSelect = document.getElementById('categoria');
+  const modeloSelect = document.getElementById('modelo');
+  const etiquetaSelect = document.getElementById('etiqueta');
+  const serialInput = document.getElementById('serial');
+
+  // Relação Categoria -> Modelos (já em ordem alfabética)
+  const modelosPorCategoria = {
+    'Dock Station': [
+      'HP USB-C Dock G5'
+    ],
+    'Notebook': [
+      'Dell Latitude 3400',
+      'Dell Latitude 3420',
+      'HP Probook 440 G11',
+      'HP Probook 440 G9'
+    ],
+    'Desktop': [
+      'Dell Optiplex 3000',
+      'Dell Optiplex 3050',
+      'Dell Optiplex 3070',
+      'Dell Optiplex 7010',
+      'HP Pro Mini 400 G9'
+    ],
+    'Monitor': [
+      'Dell E1916H',
+      'Dell E1916Hf',
+      'Dell E1920H',
+      'Dell E1920Hf',
+      'Dell P2219Hf',
+      'Dell P2222Ht',
+      'HP P27h G5 FHD Monitor',
+      'LG E1960T',
+      'Philips 196V3L',
+      'Philips 196V3LSB/78'
+    ]
+  };
+
+  function atualizarModelos() {
+    const categoriaSelecionada = categoriaSelect.value;
+    modeloSelect.innerHTML = '';
+
+    if (!categoriaSelecionada) {
+      modeloSelect.disabled = true;
+      modeloSelect.innerHTML = '<option value="">Selecione uma categoria primeiro</option>';
+      return;
+    }
+
+    modeloSelect.disabled = false;
+    const optionPadrao = document.createElement('option');
+    optionPadrao.value = '';
+    optionPadrao.textContent = 'Selecione';
+    modeloSelect.appendChild(optionPadrao);
+
+    const modelos = modelosPorCategoria[categoriaSelecionada] || [];
+    modelos.forEach(modelo => {
+      const option = document.createElement('option');
+      option.value = modelo;
+      option.textContent = modelo;
+      modeloSelect.appendChild(option);
+    });
+  }
+
+  categoriaSelect.addEventListener('change', atualizarModelos);
+
+  // Gera as opções de Etiqueta: C006100 até C006200
+  function gerarOpcoesEtiqueta() {
+    for (let i = 6100; i <= 6200; i++) {
+      const valor = 'C00' + i;
+      const option = document.createElement('option');
+      option.value = valor;
+      option.textContent = valor;
+      etiquetaSelect.appendChild(option);
+    }
+  }
+
+  function getRegistros() {
+    const data = localStorage.getItem(STORAGE_KEY);
+    return data ? JSON.parse(data) : [];
+  }
+
+  function saveRegistros(registros) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(registros));
+  }
+
+  function statusClass(status) {
+    const map = {
+      'Em uso': 'status-em-uso',
+      'Em Estoque': 'status-em-estoque',
+      'Em Manutenção': 'status-em-manutencao',
+      'Emprestado': 'status-emprestado',
+      'Descartado': 'status-descartado',
+      'Ocioso': 'status-ocioso'
+    };
+    return map[status] || '';
+  }
+
+  function renderTabela() {
+    const registros = getRegistros();
+    tabelaBody.innerHTML = '';
+
+    if (registros.length === 0) {
+      emptyMsg.style.display = 'block';
+      return;
+    } else {
+      emptyMsg.style.display = 'none';
+    }
+
+    registros.forEach((reg, index) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${reg.setor || ''}</td>
+        <td>${reg.usuario || ''}</td>
+        <td>${reg.categoria || ''}</td>
+        <td>${reg.modelo || ''}</td>
+        <td>${reg.serial || ''}</td>
+        <td class="${statusClass(reg.status)}">${reg.status || ''}</td>
+        <td>${reg.patrimonio || ''}</td>
+        <td>${reg.etiqueta || ''}</td>
+        <td>${reg.hostname || ''}</td>
+        <td>${reg.observacao || ''}</td>
+        <td><button class="delete-btn" onclick="excluirRegistro(${index})">Excluir</button></td>
+      `;
+      tabelaBody.appendChild(tr);
+    });
+  }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+
+    const novoRegistro = {
+      setor: document.getElementById('setor').value.trim(),
+      usuario: document.getElementById('usuario').value.trim(),
+      categoria: document.getElementById('categoria').value.trim(),
+      modelo: document.getElementById('modelo').value.trim(),
+      serial: document.getElementById('serial').value.trim(),
+      status: document.getElementById('status').value.trim(),
+      patrimonio: document.getElementById('patrimonio').value.trim(),
+      etiqueta: document.getElementById('etiqueta').value.trim(),
+      hostname: document.getElementById('hostname').value.trim(),
+      observacao: document.getElementById('observacao').value.trim(),
+    };
+
+    const registros = getRegistros();
+    registros.push(novoRegistro);
+    saveRegistros(registros);
+
+    renderTabela();
+    form.reset();
+    atualizarModelos(); // Reseta o select de modelo para o estado desabilitado
+    document.getElementById('setor').focus();
+  });
+
+  function excluirRegistro(index) {
+    if (!confirm('Deseja realmente excluir este registro?')) return;
+    const registros = getRegistros();
+    registros.splice(index, 1);
+    saveRegistros(registros);
+    renderTabela();
+  }
+
+  document.getElementById('clearAllBtn').addEventListener('click', function () {
+    if (!confirm('Isso vai apagar TODOS os registros. Deseja continuar?')) return;
+    localStorage.removeItem(STORAGE_KEY);
+    renderTabela();
+  });
+
+  document.getElementById('exportBtn').addEventListener('click', function () {
+    const registros = getRegistros();
+    if (registros.length === 0) {
+      alert('Não há registros para exportar.');
+      return;
+    }
+
+    const headers = ['Setor','Usuário','Categoria','Modelo','Service Tag/Serial','Status','Patrimônio','Etiqueta','Hostname','Observação'];
+    const rows = registros.map(r => [
+      r.setor, r.usuario, r.categoria, r.modelo, r.serial,
+      r.status, r.patrimonio, r.etiqueta, r.hostname, r.observacao
+    ]);
+
+    let csvContent = headers.join(';') + '\n';
+    rows.forEach(row => {
+      const escapedRow = row.map(field => `"${(field || '').replace(/"/g, '""')}"`);
+      csvContent += escapedRow.join(';') + '\n';
+    });
+
+    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'registros_equipamentos.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  });
+
+  // ===================== LEITOR DE CÂMERA (QR CODE / CÓDIGO DE BARRAS) =====================
+  const scanModal = document.getElementById('scanModal');
+  const btnScanSerial = document.getElementById('btnScanSerial');
+  const closeScanModal = document.getElementById('closeScanModal');
+  const scanStatus = document.getElementById('scanStatus');
+  let html5QrCode = null;
+
+  function abrirScanner() {
+    scanModal.classList.add('active');
+    scanStatus.textContent = 'Iniciando câmera...';
+
+    html5QrCode = new Html5Qrcode("qr-reader");
+
+    const config = {
+      fps: 10,
+      qrbox: { width: 250, height: 150 },
+      // Suporta QR Code e principais formatos de código de barras
+      formatsToSupport: [
+        Html5QrcodeSupportedFormats.QR_CODE,
+        Html5QrcodeSupportedFormats.CODE_128,
+        Html5QrcodeSupportedFormats.CODE_39,
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.EAN_8,
+        Html5QrcodeSupportedFormats.UPC_A,
+        Html5QrcodeSupportedFormats.UPC_E,
+        Html5QrcodeSupportedFormats.ITF
+      ]
+    };
+
+    html5QrCode.start(
+      { facingMode: "environment" }, // usa câmera traseira em celulares
+      config,
+      (decodedText) => {
+        // Código lido com sucesso
+        serialInput.value = decodedText;
+        scanStatus.textContent = 'Código lido: ' + decodedText;
+        fecharScanner();
+      },
+      (errorMessage) => {
+        // Erros de leitura contínuos (ignorados, é normal enquanto não encontra o código)
+      }
+    ).catch((err) => {
+      scanStatus.textContent = 'Não foi possível acessar a câmera. Verifique as permissões do navegador.';
+      console.error('Erro ao iniciar câmera:', err);
+    });
+  }
+
+  function fecharScanner() {
+    if (html5QrCode) {
+      html5QrCode.stop().then(() => {
+        html5QrCode.clear();
+        html5QrCode = null;
+      }).catch(() => {
+        html5QrCode = null;
+      });
+    }
+    setTimeout(() => {
+      scanModal.classList.remove('active');
+    }, 300);
+  }
+
+  btnScanSerial.addEventListener('click', abrirScanner);
+  closeScanModal.addEventListener('click', fecharScanner);
+
+  // Fecha o modal se clicar fora da caixa
+  scanModal.addEventListener('click', function (e) {
+    if (e.target === scanModal) {
+      fecharScanner();
+    }
+  });
+
+  // ===================== INICIALIZAÇÕES =====================
+  gerarOpcoesEtiqueta();
+  renderTabela();
+</script>
+
+</body>
+</html>
