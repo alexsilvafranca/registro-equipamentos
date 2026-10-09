@@ -267,10 +267,10 @@
       <label for="categoria">Categoria</label>
       <select id="categoria" name="categoria">
         <option value="">Selecione</option>
-       <option value="Desktop">Desktop</option> 
-       <option value="Dock Station">Dock Station</option>
-       <option value="Monitor">Monitor</option>
-       <option value="Notebook">Notebook</option>
+        <option value="Dock Station">Dock Station</option>
+        <option value="Notebook">Notebook</option>
+        <option value="Desktop">Desktop</option>
+        <option value="Monitor">Monitor</option>
       </select>
     </div>
 
@@ -285,7 +285,7 @@
       <label for="serial">Service Tag ou Serial Number</label>
       <div class="input-with-btn">
         <input type="text" id="serial" name="serial" placeholder="Digite ou escaneie">
-        <button type="button" class="btn-scan" data-target="serial" data-type="input" title="Escanear com a câmera">📷</button>
+        <button type="button" class="btn-scan" data-target="serial" title="Escanear com a câmera">📷</button>
       </div>
     </div>
 
@@ -304,14 +304,17 @@
 
     <div class="field">
       <label for="patrimonio">Patrimônio</label>
-      <input type="text" id="patrimonio" name="patrimonio">
+      <div class="input-with-btn">
+        <input type="text" id="patrimonio" name="patrimonio" placeholder="Digite ou escaneie">
+        <button type="button" class="btn-scan" data-target="patrimonio" title="Escanear com a câmera">📷</button>
+      </div>
     </div>
 
     <div class="field">
       <label for="etiqueta">Etiqueta</label>
       <div class="input-with-btn">
         <input type="text" id="etiqueta" name="etiqueta" placeholder="Digite ou escaneie">
-        <button type="button" class="btn-scan" data-target="etiqueta" data-type="input" title="Escanear com a câmera">📷</button>
+        <button type="button" class="btn-scan" data-target="etiqueta" title="Escanear com a câmera">📷</button>
       </div>
     </div>
 
@@ -392,9 +395,7 @@
       'Dell Optiplex 3050',
       'Dell Optiplex 3070',
       'Dell Optiplex 7010',
-      'HP Pro Mini 400 G9',
-      'Dell Optiplex 3040',
-      'Dell Optiplex 3060'
+      'HP Pro Mini 400 G9'
     ],
     'Monitor': [
       'Dell E1916H',
@@ -694,7 +695,7 @@
     }, 300);
   }
 
-  // Associa o evento de clique a TODOS os botões de escanear (serial e etiqueta)
+  // Associa o evento de clique a TODOS os botões de escanear (serial, patrimônio e etiqueta)
   document.querySelectorAll('.btn-scan').forEach(btn => {
     btn.addEventListener('click', function () {
       const targetId = this.getAttribute('data-target');
