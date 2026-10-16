@@ -25,6 +25,20 @@
     max-width: 1200px;
     margin: 0 auto;
   }
+  .header-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+    margin-bottom: 10px;
+  }
+  .header-bar img {
+    height: 60px;
+    width: auto;
+  }
+  .header-bar h1 {
+    margin: 0;
+  }
   form {
     background: #fff;
     padding: 20px;
@@ -211,7 +225,10 @@
 <body>
 
 <div class="container">
-  <h1>Registro de Equipamentos / Ativos</h1>
+  <div class="header-bar">
+    <img src="CEVA.jfif" alt="Logo CEVA">
+    <h1>Registro de Equipamentos / Ativos</h1>
+  </div>
 
   <form id="registroForm">
     <div class="field">
